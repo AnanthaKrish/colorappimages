@@ -31,4 +31,4 @@ if __name__ == "__main__":
     if not images:
         print("No images found under 'arts' folder.")
     else:
-        write_batches(images, batch_size=20)
+        write_batches(images, batch_size=200, prefix='art_links')
