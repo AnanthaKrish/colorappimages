@@ -71,11 +71,11 @@ def convert_to_base64_json(image_list, output_file='images_base64.json'):
     return base64_images
 
 if __name__ == "__main__":
-    ARTS_FOLDER = 'arts'  # Change this if your arts folder is elsewhere
+    ARTS_FOLDER = 'Newarts'  # Change this if your arts folder is elsewhere
     images = find_images(ARTS_FOLDER)
     if not images:
         print("No images found under 'arts' folder.")
     else:
         # write_batches(images, batch_size=200, prefix='art_links')
         # Uncomment the line below to convert images to base64
-        convert_to_base64_json(images, 'images_base64.json')
+        convert_to_base64_json(images, 'images_base642.json')
