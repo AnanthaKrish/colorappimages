@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Manager</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        .file-input {
+            margin-bottom: 20px;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .image-card {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .image-card:hover {
+            border-color: #007bff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .image-card.selected {
+            border-color: #007bff;
+            background-color: #e3f2fd;
+        }
+        .image-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .image-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+        .filename {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .path {
+            font-style: italic;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #666;
+        }
+        .error {
+            color: #dc3545;
+            text-align: center;
+            padding: 20px;
+            background: #f8d7da;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .stats {
+            font-size: 14px;
+            color: #666;
+        }
+        .error-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 4px;
+            color: #6c757d;
+            font-size: 14px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function ImageManager() {
+            const [images, setImages] = useState([]);
+            const [selectedImages, setSelectedImages] = useState(new Set());
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const fileInputRef = useRef(null);
+
+            // Function to detect image format from base64 data
+            const detectImageFormat = (base64String) => {
+                const signatures = {
+                    '/9j/': 'jpeg',
+                    'iVBORw0KGgo': 'png',
+                    'R0lGODlh': 'gif',
+                    'UklGR': 'webp',
+                    'Qk': 'bmp'
+                };
+
+                for (const [signature, format] of Object.entries(signatures)) {
+                    if (base64String.startsWith(signature)) {
+                        return format;
+                    }
+                }
+                return 'png'; // default fallback
+            };
+
+            // Function to ensure proper data URI format
+            const formatDataUri = (dataUri) => {
+                if (!dataUri) return null;
+                
+                // If it's already a proper data URI, return as is
+                if (dataUri.startsWith('data:')) {
+                    return dataUri;
+                }
+                
+                // If it's just base64, add the data URI prefix
+                const format = detectImageFormat(dataUri);
+                return `data:image/${format};base64,${dataUri}`;
+            };
+
+            const loadImagesFromFile = async (file) => {
+                setLoading(true);
+                setError(null);
+                
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    
+                    if (Array.isArray(data)) {
+                        // Process each image to ensure proper data URI format
+                        const processedImages = data.map(image => ({
+                            ...image,
+                            data_uri: formatDataUri(image.data_uri)
+                        }));
+                        
+                        setImages(processedImages);
+                        setSelectedImages(new Set());
+                    } else {
+                        throw new Error('JSON file must contain an array of image objects');
+                    }
+                } catch (err) {
+                    setError(`Error loading file: ${err.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleFileChange = (event) => {
+                const file = event.target.files[0];
+                if (file && file.type === 'application/json') {
+                    loadImagesFromFile(file);
+                } else {
+                    setError('Please select a valid JSON file');
+                }
+            };
+
+            const toggleImageSelection = (index) => {
+                const newSelected = new Set(selectedImages);
+                if (newSelected.has(index)) {
+                    newSelected.delete(index);
+                } else {
+                    newSelected.add(index);
+                }
+                setSelectedImages(newSelected);
+            };
+
+            const selectAll = () => {
+                if (selectedImages.size === images.length) {
+                    setSelectedImages(new Set());
+                } else {
+                    setSelectedImages(new Set(images.map((_, index) => index)));
+                }
+            };
+
+            const deleteSelected = () => {
+                if (selectedImages.size === 0) {
+                    alert('Please select images to delete');
+                    return;
+                }
+
+                if (confirm(`Are you sure you want to delete ${selectedImages.size} image(s)?`)) {
+                    const newImages = images.filter((_, index) => !selectedImages.has(index));
+                    setImages(newImages);
+                    setSelectedImages(new Set());
+                }
+            };
+
+            const downloadUpdatedJSON = () => {
+                const dataStr = JSON.stringify(images, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'updated_images.json';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            };
+
+            // Load the default JSON file on component mount
+            useEffect(() => {
+                fetch('./images_base642.json')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load default JSON file');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (Array.isArray(data)) {
+                            // Process images to ensure proper data URI format
+                            const processedImages = data.map(image => ({
+                                ...image,
+                                data_uri: formatDataUri(image.data_uri)
+                            }));
+                            setImages(processedImages);
+                        } else {
+                            throw new Error('Invalid JSON format');
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('Could not load default JSON file:', err.message);
+                        setError('Default JSON file not found. Please upload a JSON file.');
+                    });
+            }, []);
+
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>Image Manager</h1>
+                        <div className="controls">
+                            <div className="stats">
+                                {images.length} total images, {selectedImages.size} selected
+                            </div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".json"
+                                onChange={handleFileChange}
+                                style={{ display: 'none' }}
+                            />
+                            <button 
+                                className="btn btn-secondary"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                Load JSON File
+                            </button>
+                            <button 
+                                className="btn btn-primary"
+                                onClick={selectAll}
+                                disabled={images.length === 0}
+                            >
+                                {selectedImages.size === images.length ? 'Deselect All' : 'Select All'}
+                            </button>
+                            <button 
+                                className="btn btn-danger"
+                                onClick={deleteSelected}
+                                disabled={selectedImages.size === 0}
+                            >
+                                Delete Selected ({selectedImages.size})
+                            </button>
+                            <button 
+                                className="btn btn-primary"
+                                onClick={downloadUpdatedJSON}
+                                disabled={images.length === 0}
+                            >
+                                Download JSON
+                            </button>
+                        </div>
+                    </div>
+
+                    {error && <div className="error">{error}</div>}
+
+                    {loading && <div className="loading">Loading images...</div>}
+
+                    {!loading && images.length === 0 && !error && (
+                        <div className="loading">No images loaded. Please upload a JSON file.</div>
+                    )}
+
+                    {!loading && images.length > 0 && (
+                        <div className="image-grid">
+                            {images.map((image, index) => (
+                                <div
+                                    key={index}
+                                    className={`image-card ${selectedImages.has(index) ? 'selected' : ''}`}
+                                    onClick={() => toggleImageSelection(index)}
+                                >
+                                    {image.data_uri ? (
+                                        <img
+                                            src={image.data_uri}
+                                            alt={image.filename}
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="error-placeholder">
+                                            No image data available
+                                        </div>
+                                    )}
+                                    <div className="error-placeholder" style={{ display: 'none' }}>
+                                        Image failed to load
+                                    </div>
+                                    <div className="image-info">
+                                        <div className="filename">{image.filename}</div>
+                                        <div className="path">{image.path}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<ImageManager />, document.getElementById('root'));
+    </script>
+</body>
+</html>
